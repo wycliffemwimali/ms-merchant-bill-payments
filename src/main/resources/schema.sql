@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS accounts (
+    account_number VARCHAR(32) PRIMARY KEY,
+    name VARCHAR(120) NOT NULL,
+    account_type VARCHAR(16) NOT NULL CHECK (account_type IN ('CUSTOMER', 'MERCHANT')),
+    balance DECIMAL(19, 2) NOT NULL CHECK (balance >= 0),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
