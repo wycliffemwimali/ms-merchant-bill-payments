@@ -14,6 +14,9 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.security.concurrent.DelegatingSecurityContextExecutorService;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
@@ -31,6 +34,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
+@WithMockUser(username = "admin", roles = "ADMIN")
 @Import(PostgresTestConfiguration.class)
 class AccountRegistrationTest {
     @Autowired private WebApplicationContext context;
@@ -40,7 +44,9 @@ class AccountRegistrationTest {
 
     @BeforeEach
     void setUp() {
-        mvc = MockMvcBuilders.webAppContextSetup(context).build();
+        mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity())
+                .defaultRequest(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/")
+                        .header("Idempotency-Key", java.util.UUID.randomUUID().toString())).build();
         jdbc.update("DELETE FROM payments");
         jdbc.update("DELETE FROM accounts");
     }
@@ -149,7 +155,7 @@ class AccountRegistrationTest {
 
     @Test
     void concurrentDuplicatesCreateExactlyOneAccount() throws Exception {
-        var executor = Executors.newFixedThreadPool(2);
+        var executor = new DelegatingSecurityContextExecutorService(Executors.newFixedThreadPool(2));
         var start = new CountDownLatch(1);
         Callable<Boolean> register = () -> {
             assertTrue(start.await(5, TimeUnit.SECONDS));

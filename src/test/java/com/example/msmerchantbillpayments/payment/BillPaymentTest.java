@@ -11,6 +11,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.security.concurrent.DelegatingSecurityContextExecutorService;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
@@ -33,6 +36,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
+@WithMockUser(username = "admin", roles = "ADMIN")
 @Import(PostgresTestConfiguration.class)
 class BillPaymentTest {
     @Autowired private WebApplicationContext context;
@@ -42,7 +46,9 @@ class BillPaymentTest {
 
     @BeforeEach
     void setUp() {
-        mvc = MockMvcBuilders.webAppContextSetup(context).build();
+        mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity())
+                .defaultRequest(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/")
+                        .header("Idempotency-Key", java.util.UUID.randomUUID().toString())).build();
         jdbc.update("DELETE FROM payments");
         jdbc.update("DELETE FROM accounts");
         jdbc.update("UPDATE bank_fee_account SET balance = 0 WHERE id = 1");
@@ -73,8 +79,8 @@ class BillPaymentTest {
 
     @Test
     void returnsPersistedUniqueReferences() {
-        var first = service.pay(request("C001", "100"));
-        var second = service.pay(request("C001", "100"));
+        var first = service.pay(request("C001", "100"), java.util.UUID.randomUUID().toString());
+        var second = service.pay(request("C001", "100"), java.util.UUID.randomUUID().toString());
         assertNotEquals(first.reference(), second.reference());
         assertEquals(2, paymentCount());
         assertEquals(first.paidAt(), jdbc.queryForObject("SELECT paid_at FROM payments WHERE reference = ?",
@@ -86,7 +92,7 @@ class BillPaymentTest {
 
     @Test
     void acceptsExactFundsIncludingFee() {
-        service.pay(request("C001", "970"));
+        service.pay(request("C001", "970"), java.util.UUID.randomUUID().toString());
         assertBalances("0.00", "1070.00", "30.00");
     }
 
@@ -152,7 +158,7 @@ class BillPaymentTest {
     @Test
     void rejectsMerchantBalanceOverflow() {
         jdbc.update("UPDATE accounts SET balance = 99999999999999999.99 WHERE account_number = 'M001'");
-        PaymentException error = assertThrows(PaymentException.class, () -> service.pay(request("C001", "1")));
+        PaymentException error = assertThrows(PaymentException.class, () -> service.pay(request("C001", "1"), java.util.UUID.randomUUID().toString()));
         assertEquals("BALANCE_LIMIT_EXCEEDED", error.getCode());
         assertBalances("1000.00", "99999999999999999.99", "0.00");
         assertEquals(0, paymentCount());
@@ -161,7 +167,7 @@ class BillPaymentTest {
     @Test
     void rollsBackAccountUpdatesWhenFeeCreditFails() {
         jdbc.update("UPDATE bank_fee_account SET balance = 99999999999999999.99 WHERE id = 1");
-        PaymentException error = assertThrows(PaymentException.class, () -> service.pay(request("C001", "100")));
+        PaymentException error = assertThrows(PaymentException.class, () -> service.pay(request("C001", "100"), java.util.UUID.randomUUID().toString()));
         assertEquals("BANK_FEE_ACCOUNT_UNAVAILABLE", error.getCode());
         assertBalances("1000.00", "100.00", "99999999999999999.99");
         assertEquals(0, paymentCount());
@@ -204,7 +210,7 @@ class BillPaymentTest {
 
     @Test
     void restartingSchemaInitializationPreservesBalancesAndPayments() {
-        service.pay(request("C001", "100"));
+        service.pay(request("C001", "100"), java.util.UUID.randomUUID().toString());
         new ResourceDatabasePopulator(new ClassPathResource("schema.sql")).execute(jdbc.getDataSource());
         assertBalances("870.00", "200.00", "30.00");
         assertEquals(1, paymentCount());
@@ -212,13 +218,13 @@ class BillPaymentTest {
 
     @Test
     void validatesRequestsThroughServiceInterface() {
-        assertThrows(ConstraintViolationException.class, () -> service.pay(request("C001", "-1")));
-        assertThrows(ConstraintViolationException.class, () -> service.pay(null));
+        assertThrows(ConstraintViolationException.class, () -> service.pay(request("C001", "-1"), java.util.UUID.randomUUID().toString()));
+        assertThrows(ConstraintViolationException.class, () -> service.pay(null, java.util.UUID.randomUUID().toString()));
         assertUnchanged();
     }
 
     private List<String> concurrently(List<BillPaymentRequest> requests) throws Exception {
-        var executor = Executors.newFixedThreadPool(requests.size());
+        var executor = new DelegatingSecurityContextExecutorService(Executors.newFixedThreadPool(requests.size()));
         var ready = new CountDownLatch(requests.size());
         var start = new CountDownLatch(1);
         try {
@@ -226,7 +232,7 @@ class BillPaymentTest {
                 ready.countDown();
                 assertTrue(start.await(5, TimeUnit.SECONDS));
                 try {
-                    service.pay(request);
+                    service.pay(request, java.util.UUID.randomUUID().toString());
                     return "SUCCESS";
                 } catch (PaymentException ex) {
                     return ex.getCode();

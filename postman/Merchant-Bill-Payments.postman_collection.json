@@ -1,0 +1,1701 @@
+{
+  "info": {
+    "name": "Merchant Bill Payments",
+    "_postman_id": "b09007a8-1ec5-4cd7-a629-f6a421d58267",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 - Register accounts",
+      "item": [
+        {
+          "name": "Register customer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"JSON response\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/json\"));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Customer created\", () => { pm.expect(body.accountNumber).to.eql(\"PM-SEC-CUSTOMER-001\"); pm.expect(body.accountType).to.eql(\"CUSTOMER\"); pm.expect(body.balance).to.eql(5000); pm.expect(body.currency).to.eql(\"KES\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountNumber\": \"PM-SEC-CUSTOMER-001\",\n  \"name\": \"Wycliffe Mwimali\",\n  \"accountType\": \"CUSTOMER\",\n  \"openingBalance\": 5000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/accounts",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "accounts"
+              ]
+            },
+            "description": "Run first. Creates PM-SEC-CUSTOMER-001 with KES 5,000."
+          },
+          "response": []
+        },
+        {
+          "name": "Register merchant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"JSON response\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/json\"));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Merchant created\", () => { pm.expect(body.accountNumber).to.eql(\"PM-SEC-MERCHANT-001\"); pm.expect(body.accountType).to.eql(\"MERCHANT\"); pm.expect(body.balance).to.eql(0); pm.expect(body.currency).to.eql(\"KES\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountNumber\": \"PM-SEC-MERCHANT-001\",\n  \"name\": \"Demo Merchant\",\n  \"accountType\": \"MERCHANT\",\n  \"openingBalance\": 0.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/accounts",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "accounts"
+              ]
+            },
+            "description": "Run after Register customer. Creates the merchant used by the payment requests."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02 - Bill payment",
+      "item": [
+        {
+          "name": "Pay merchant - KES 200 plus KES 30 fee",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"JSON response\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/json\"));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Payment amounts\", () => { pm.expect(body.amount).to.eql(200); pm.expect(body.fee).to.eql(30); pm.expect(body.totalDebit).to.eql(230); pm.expect(body.availableBalance).to.eql(4770); pm.expect(body.currency).to.eql(\"KES\"); });",
+                  "pm.test(\"Payment accounts\", () => { pm.expect(body.customerAccountNumber).to.eql(\"PM-SEC-CUSTOMER-001\"); pm.expect(body.merchantAccountNumber).to.eql(\"PM-SEC-MERCHANT-001\"); });",
+                  "pm.test(\"Reference and timestamp\", () => { pm.expect(body.reference).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i); pm.expect(Number.isNaN(Date.parse(body.paidAt))).to.eql(false); });",
+                  "pm.test(\"Successful status\", () => pm.expect(body.status).to.eql(\"SUCCESS\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "pm-sec-02-1"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerAccountNumber\": \"PM-SEC-CUSTOMER-001\",\n  \"merchantAccountNumber\": \"PM-SEC-MERCHANT-001\",\n  \"amount\": 200.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/payments",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "payments"
+              ]
+            },
+            "description": "First payment returns 201. Repeat the replay request to verify the same key does not debit again.",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "Wycliffe",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "customer123",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Replay original payment without another debit",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "Wycliffe",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "customer123",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "pm-sec-02-1"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/payments",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "payments"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerAccountNumber\": \"PM-SEC-CUSTOMER-001\",\n  \"merchantAccountNumber\": \"PM-SEC-MERCHANT-001\",\n  \"amount\": 200\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Original payment replayed\", () => { pm.expect(body.replayed).to.eql(true); pm.expect(body.status).to.eql(\"SUCCESS\"); pm.expect(body.availableBalance).to.eql(4770); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Reject same key with different amount",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "Wycliffe",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "customer123",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "pm-sec-02-1"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/payments",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "payments"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerAccountNumber\": \"PM-SEC-CUSTOMER-001\",\n  \"merchantAccountNumber\": \"PM-SEC-MERCHANT-001\",\n  \"amount\": 201\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Idempotency conflict\", () => pm.expect(body.code).to.eql(\"IDEMPOTENCY_CONFLICT\"));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03 - Account validation",
+      "item": [
+        {
+          "name": "Duplicate account number",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"JSON response\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/json\"));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Error code\", () => pm.expect(body.code).to.eql(\"ACCOUNT_ALREADY_EXISTS\"));",
+                  "pm.test(\"Error status\", () => pm.expect(body.status).to.eql(409));",
+                  "pm.test(\"Error details\", () => { pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); pm.expect(body.errors).to.be.an(\"object\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountNumber\": \"PM-SEC-CUSTOMER-001\",\n  \"name\": \"Wycliffe Mwimali\",\n  \"accountType\": \"CUSTOMER\",\n  \"openingBalance\": 5000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/accounts",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "accounts"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Missing required fields",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"JSON response\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/json\"));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Error code\", () => pm.expect(body.code).to.eql(\"VALIDATION_ERROR\"));",
+                  "pm.test(\"Error status\", () => pm.expect(body.status).to.eql(400));",
+                  "pm.test(\"Error details\", () => { pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); pm.expect(body.errors).to.be.an(\"object\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/accounts",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "accounts"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Negative opening balance",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"JSON response\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/json\"));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Error code\", () => pm.expect(body.code).to.eql(\"VALIDATION_ERROR\"));",
+                  "pm.test(\"Error status\", () => pm.expect(body.status).to.eql(400));",
+                  "pm.test(\"Error details\", () => { pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); pm.expect(body.errors).to.be.an(\"object\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountNumber\": \"PM-SEC-CUSTOMER-001\",\n  \"name\": \"Wycliffe Mwimali\",\n  \"accountType\": \"CUSTOMER\",\n  \"openingBalance\": -1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/accounts",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "accounts"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Unsupported account type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"JSON response\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/json\"));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Error code\", () => pm.expect(body.code).to.eql(\"INVALID_JSON\"));",
+                  "pm.test(\"Error status\", () => pm.expect(body.status).to.eql(400));",
+                  "pm.test(\"Error details\", () => { pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); pm.expect(body.errors).to.be.an(\"object\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountNumber\": \"PM-SEC-CUSTOMER-001\",\n  \"name\": \"Wycliffe Mwimali\",\n  \"accountType\": \"BANK\",\n  \"openingBalance\": 5000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/accounts",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "accounts"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04 - Payment validation",
+      "item": [
+        {
+          "name": "Insufficient funds",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"JSON response\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/json\"));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Error code\", () => pm.expect(body.code).to.eql(\"INSUFFICIENT_FUNDS\"));",
+                  "pm.test(\"Error status\", () => pm.expect(body.status).to.eql(409));",
+                  "pm.test(\"Error details\", () => { pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); pm.expect(body.errors).to.be.an(\"object\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "pm-sec-04-1"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerAccountNumber\": \"PM-SEC-CUSTOMER-001\",\n  \"merchantAccountNumber\": \"PM-SEC-MERCHANT-001\",\n  \"amount\": 100000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/payments",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "payments"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "admin",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "admin123",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Unknown merchant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"JSON response\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/json\"));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Error code\", () => pm.expect(body.code).to.eql(\"ACCOUNT_NOT_FOUND\"));",
+                  "pm.test(\"Error status\", () => pm.expect(body.status).to.eql(404));",
+                  "pm.test(\"Error details\", () => { pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); pm.expect(body.errors).to.be.an(\"object\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "pm-sec-04-2"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerAccountNumber\": \"PM-SEC-CUSTOMER-001\",\n  \"merchantAccountNumber\": \"PM-SEC-MISSING-001\",\n  \"amount\": 200.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/payments",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "payments"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "admin",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "admin123",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Same customer and merchant account",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"JSON response\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/json\"));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Error code\", () => pm.expect(body.code).to.eql(\"INVALID_PAYMENT_ACCOUNTS\"));",
+                  "pm.test(\"Error status\", () => pm.expect(body.status).to.eql(400));",
+                  "pm.test(\"Error details\", () => { pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); pm.expect(body.errors).to.be.an(\"object\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "pm-sec-04-3"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerAccountNumber\": \"PM-SEC-CUSTOMER-001\",\n  \"merchantAccountNumber\": \"PM-SEC-CUSTOMER-001\",\n  \"amount\": 200.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/payments",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "payments"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "admin",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "admin123",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Incorrect account roles",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"JSON response\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/json\"));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Error code\", () => pm.expect(body.code).to.eql(\"INVALID_ACCOUNT_TYPE\"));",
+                  "pm.test(\"Error status\", () => pm.expect(body.status).to.eql(400));",
+                  "pm.test(\"Error details\", () => { pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); pm.expect(body.errors).to.be.an(\"object\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "pm-sec-04-4"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerAccountNumber\": \"PM-SEC-MERCHANT-001\",\n  \"merchantAccountNumber\": \"PM-SEC-CUSTOMER-001\",\n  \"amount\": 200.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/payments",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "payments"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "admin",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "admin123",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Zero payment amount",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"JSON response\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/json\"));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Error code\", () => pm.expect(body.code).to.eql(\"VALIDATION_ERROR\"));",
+                  "pm.test(\"Error status\", () => pm.expect(body.status).to.eql(400));",
+                  "pm.test(\"Error details\", () => { pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); pm.expect(body.errors).to.be.an(\"object\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "pm-sec-04-5"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerAccountNumber\": \"PM-SEC-CUSTOMER-001\",\n  \"merchantAccountNumber\": \"PM-SEC-MERCHANT-001\",\n  \"amount\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/payments",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "payments"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "admin",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "admin123",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Too many decimal places",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"JSON response\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/json\"));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Error code\", () => pm.expect(body.code).to.eql(\"VALIDATION_ERROR\"));",
+                  "pm.test(\"Error status\", () => pm.expect(body.status).to.eql(400));",
+                  "pm.test(\"Error details\", () => { pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); pm.expect(body.errors).to.be.an(\"object\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "pm-sec-04-6"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerAccountNumber\": \"PM-SEC-CUSTOMER-001\",\n  \"merchantAccountNumber\": \"PM-SEC-MERCHANT-001\",\n  \"amount\": 1.001\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/payments",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "payments"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "admin",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "admin123",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Missing payment fields",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"JSON response\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/json\"));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Error code\", () => pm.expect(body.code).to.eql(\"VALIDATION_ERROR\"));",
+                  "pm.test(\"Error status\", () => pm.expect(body.status).to.eql(400));",
+                  "pm.test(\"Error details\", () => { pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); pm.expect(body.errors).to.be.an(\"object\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "pm-sec-04-7"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/payments",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "payments"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "admin",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "admin123",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Malformed JSON",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"JSON response\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/json\"));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Error code\", () => pm.expect(body.code).to.eql(\"INVALID_JSON\"));",
+                  "pm.test(\"Error status\", () => pm.expect(body.status).to.eql(400));",
+                  "pm.test(\"Error details\", () => { pm.expect(body.message).to.be.a(\"string\"); pm.expect(body.timestamp).to.be.a(\"string\"); pm.expect(body.errors).to.be.an(\"object\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "pm-sec-04-8"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"amount\":",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/payments",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "payments"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "admin",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "admin123",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "05 - Mini-statements",
+      "item": [
+        {
+          "name": "Customer mini-statement",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Customer and currency\", () => { pm.expect(body.accountNumber).to.eql(\"PM-SEC-CUSTOMER-001\"); pm.expect(body.currency).to.eql(\"KES\"); pm.expect(body.availableBalance).to.be.a(\"number\"); });",
+                  "pm.test(\"At most five payments\", () => { pm.expect(body.transactions).to.be.an(\"array\"); pm.expect(body.transactions.length).to.be.at.most(5); });",
+                  "pm.test(\"Payment details and order\", () => { body.transactions.forEach((item, index) => { pm.expect(item.reference).to.be.a(\"string\"); pm.expect(item.merchantAccountNumber).to.be.a(\"string\"); pm.expect(item.fee).to.eql(30); pm.expect(item.totalDebit).to.be.closeTo(item.amount + item.fee, 0.001); pm.expect(item.balanceAfter).to.be.a(\"number\"); pm.expect(Number.isNaN(Date.parse(item.paidAt))).to.eql(false); if (index > 0) pm.expect(Date.parse(body.transactions[index - 1].paidAt)).to.be.at.least(Date.parse(item.paidAt)); }); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/accounts/PM-SEC-CUSTOMER-001/mini-statement",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "accounts",
+                "PM-SEC-CUSTOMER-001",
+                "mini-statement"
+              ]
+            },
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "Wycliffe",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "customer123",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Unknown account mini-statement",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 404\", () => pm.response.to.have.status(404));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Error code\", () => pm.expect(body.code).to.eql(\"ACCOUNT_NOT_FOUND\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/accounts/PM-SEC-MISSING-001/mini-statement",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "accounts",
+                "PM-SEC-MISSING-001",
+                "mini-statement"
+              ]
+            },
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "admin",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "admin123",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Merchant mini-statement rejected",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"Error code\", () => pm.expect(body.code).to.eql(\"INVALID_ACCOUNT_TYPE\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/accounts/PM-SEC-MERCHANT-001/mini-statement",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "accounts",
+                "PM-SEC-MERCHANT-001",
+                "mini-statement"
+              ]
+            },
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "admin",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "admin123",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "06 - Authentication and authorization",
+      "item": [
+        {
+          "name": "No credentials",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/accounts/PM-SEC-CUSTOMER-001/mini-statement",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "accounts",
+                "PM-SEC-CUSTOMER-001",
+                "mini-statement"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+                  "const body = pm.response.json();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Incorrect password",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "Wycliffe",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "wrong-password",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/accounts/PM-SEC-CUSTOMER-001/mini-statement",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "accounts",
+                "PM-SEC-CUSTOMER-001",
+                "mini-statement"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+                  "const body = pm.response.json();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Customer cannot register accounts",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "Wycliffe",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "customer123",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/accounts",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "accounts"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountNumber\": \"PM-SEC-FORBIDDEN\",\n  \"name\": \"Forbidden\",\n  \"accountType\": \"CUSTOMER\",\n  \"openingBalance\": 100\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));",
+                  "const body = pm.response.json();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Customer can view any customer statement",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "Mwimali",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "customer456",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/accounts/PM-SEC-CUSTOMER-001/mini-statement",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "accounts",
+                "PM-SEC-CUSTOMER-001",
+                "mini-statement"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Customer can pay from any customer account",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "Mwimali",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "customer456",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "pm-shared-account"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/payments",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "payments"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerAccountNumber\": \"PM-SEC-CUSTOMER-001\",\n  \"merchantAccountNumber\": \"PM-SEC-MERCHANT-001\",\n  \"amount\": 200\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Missing idempotency key",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "Wycliffe",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "customer123",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/payments",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "payments"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerAccountNumber\": \"PM-SEC-CUSTOMER-001\",\n  \"merchantAccountNumber\": \"PM-SEC-MERCHANT-001\",\n  \"amount\": 200\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    }
+  ],
+  "auth": {
+    "type": "basic",
+    "basic": [
+      {
+        "key": "username",
+        "value": "admin",
+        "type": "string"
+      },
+      {
+        "key": "password",
+        "value": "admin123",
+        "type": "string"
+      }
+    ]
+  }
+}

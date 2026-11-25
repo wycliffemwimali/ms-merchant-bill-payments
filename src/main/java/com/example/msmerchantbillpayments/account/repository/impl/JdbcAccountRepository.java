@@ -25,6 +25,16 @@ public class JdbcAccountRepository implements AccountRepository {
     }
 
     @Override
+    public Optional<Account> findByNumber(String accountNumber) {
+        return jdbc.query("""
+                SELECT account_number, name, account_type, balance
+                FROM accounts WHERE account_number = ?
+                """, (row, index) -> new Account(row.getString("account_number"), row.getString("name"),
+                AccountType.valueOf(row.getString("account_type")), row.getBigDecimal("balance")),
+                accountNumber).stream().findFirst();
+    }
+
+    @Override
     public Optional<Account> findByNumberForUpdate(String accountNumber) {
         return jdbc.query("""
                 SELECT account_number, name, account_type, balance

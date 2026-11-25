@@ -1,80 +1,101 @@
 # Merchant Bill Payments
 
-REST API built with Java 17, Spring Boot, and PostgreSQL for a merchant bill payments assessment.
-Account registration and bill payments are implemented; mini-statements are in progress.
+Java 17, Spring Boot, and PostgreSQL REST API for account registration, merchant payments,
+and customer mini-statements. Payments include a flat KES 30 bank fee.
 
-## Getting started
+## Run locally
 
-Requires JDK 17+ (`JAVA_HOME` configured) and PostgreSQL. Maven is included via the wrapper.
-
-Create the database if it does not exist:
+Requires JDK 17+ (`JAVA_HOME` configured) and PostgreSQL. Create `mydb` if needed:
 
 ```bash
 psql -h localhost -U postgres -d postgres -c 'CREATE DATABASE mydb;'
+./mvnw spring-boot:run
 ```
 
-Configure the connection using environment variables, or use the local defaults:
-
-| Variable | Default |
+| Environment variable | Default |
 | --- | --- |
 | `DB_URL` | `jdbc:postgresql://localhost:5432/mydb` |
 | `DB_USERNAME` | `postgres` |
 | `DB_PASSWORD` | `postgres` |
 | `SERVER_PORT` | `8080` |
 
-Start the application:
+Tables and additive schema changes are applied on startup without resetting balances.
+
+## Authentication
+
+All APIs require HTTP Basic authentication. These in-memory users are for the local demo;
+passwords are BCrypt-encoded at startup. Use HTTPS and override passwords outside localhost.
+
+| Username | Default password | Role | Password override |
+| --- | --- | --- | --- |
+| `admin` | `admin123` | Admin | `ADMIN_PASSWORD` |
+| `Wycliffe` | `customer123` | Customer | `WYCLIFFE_PASSWORD` |
+| `Mwimali` | `customer456` | Customer | `MWIMALI_PASSWORD` |
+
+Only admins register accounts. Both admins and authenticated customers can pay from any
+customer account and read any customer's mini-statement. There are no account ownership
+restrictions. Requests are stateless and accept JSON.
+
+## APIs
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| POST | `/api/accounts` | Register a customer or merchant account (admin only) |
+| POST | `/api/payments` | Pay a merchant; requires `Idempotency-Key` |
+| GET | `/api/accounts/{accountNumber}/mini-statement` | Current balance and latest five payments |
+
+Register a customer:
 
 ```bash
-./mvnw spring-boot:run
-```
-
-The API runs at `http://localhost:8080`. Tables are created automatically on startup.
-
-## Account registration
-
-`POST /api/accounts` registers a `CUSTOMER` or `MERCHANT` account. Amounts are in KES.
-
-```bash
-curl -i http://localhost:8080/api/accounts \
+curl -u admin:admin123 http://localhost:8080/api/accounts \
   -H 'Content-Type: application/json' \
   -d '{"accountNumber":"ACC001","name":"Wycliffe Mwimali","accountType":"CUSTOMER","openingBalance":5000.00}'
 ```
 
-Returns `201 Created` with the account details and balance, `400 Bad Request` for
-invalid input, or `409 Conflict` for an existing account number.
-
-## Bill payment
-
-`POST /api/payments` transfers the bill amount to a merchant and charges the customer
-an additional KES 30, credited to the internal bank fee account.
+Register a `MERCHANT` account named `MER001` before making this payment:
 
 ```bash
-curl -i http://localhost:8080/api/payments \
-  -H 'Content-Type: application/json' \
+curl -u Wycliffe:customer123 http://localhost:8080/api/payments \
+  -H 'Content-Type: application/json' -H 'Idempotency-Key: bill-001' \
   -d '{"customerAccountNumber":"ACC001","merchantAccountNumber":"MER001","amount":200.00}'
 ```
 
-Register both accounts first, using `CUSTOMER` and `MERCHANT` respectively. A successful
-payment returns `201 Created` with a unique reference, amount, fee, total debit,
-remaining balance, currency, and timestamp. All three balance updates and the payment
-record commit or roll back together. Concurrent payments use database row locks.
+```bash
+curl -u Wycliffe:customer123 http://localhost:8080/api/accounts/ACC001/mini-statement
+```
 
-Invalid inputs return `400`, missing accounts `404`, and insufficient funds or balance
-limits `409`. Each accepted request creates a new payment; automatic retry deduplication
-is not implemented.
+Successful payments return `201`, `status: SUCCESS`, a reference, amount, fee, total debit,
+remaining balance, and timestamp. All three balances and the payment record commit together.
+Failed attempts roll back and return an error code; no failed payment record is created.
 
-## Testing
+Idempotency keys are scoped to the authenticated user, must be non-blank, and have a
+128-character limit. Retrying the same details returns `200`, the original payment details,
+and `replayed: true`; changing the details returns `409`. Use a new key for each new payment.
+Keys persist in PostgreSQL, and concurrent retries cannot debit twice. Failed attempts do
+not consume a key. A replay's balance is the original post-payment balance; use the statement
+for the current balance.
+
+Errors use consistent JSON: `400` invalid input, `401` missing/invalid credentials, `403`
+forbidden access, `404` missing account, and `409` duplicates, insufficient funds, or conflicts.
+Statements use one consistent database snapshot and return an empty list for new customers.
+
+## Tests and Postman
 
 ```bash
 ./mvnw clean verify
+./mvnw -Dtest=PaymentServiceUnitTest test
 ```
 
-Tests require PostgreSQL and use temporary schemas, leaving application tables untouched.
-They default to the connection settings above. Override with `TEST_DB_URL`,
-`TEST_DB_USERNAME`, and `TEST_DB_PASSWORD`; the test user needs permission to create schemas.
+The full suite needs PostgreSQL. Integration tests create and remove isolated schemas;
+application tables are untouched. Override defaults with `TEST_DB_URL`, `TEST_DB_USERNAME`,
+and `TEST_DB_PASSWORD`. The test user needs schema-creation permission. Unit tests need no database.
+
+
+
+
 
 ## Structure
 
-Code is organized by feature into controllers, DTOs, models, services, repositories,
-and exceptions. Controllers depend on service interfaces; service implementations
-use repository interfaces backed by JDBC. Shared error handling lives in `common`.
+Features contain controllers, DTOs, models, service interfaces/implementations, and JDBC
+repository interfaces/implementations. Shared errors live in `common`; Basic authentication
+and role checks live in `security`. Database transactions and row locks protect balances.

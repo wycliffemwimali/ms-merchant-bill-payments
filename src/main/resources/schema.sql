@@ -24,3 +24,13 @@ CREATE TABLE IF NOT EXISTS payments (
     paid_at TIMESTAMP WITH TIME ZONE NOT NULL,
     CHECK (customer_account_number <> merchant_account_number)
 );
+
+CREATE INDEX IF NOT EXISTS idx_payments_customer_latest
+ON payments (customer_account_number, paid_at DESC, reference DESC);
+
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS requester VARCHAR(100);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(128);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS status VARCHAR(16) NOT NULL DEFAULT 'SUCCESS' CHECK (status = 'SUCCESS');
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_request
+ON payments (requester, idempotency_key);

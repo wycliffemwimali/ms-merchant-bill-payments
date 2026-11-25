@@ -6,6 +6,7 @@ import java.util.Optional;
 
 public interface AccountRepository {
     void insert(Account account);
+    Optional<Account> findByNumber(String accountNumber);
     Optional<Account> findByNumberForUpdate(String accountNumber);
     void updateBalance(String accountNumber, BigDecimal balance);
 }

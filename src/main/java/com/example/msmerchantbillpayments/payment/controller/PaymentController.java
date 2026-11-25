@@ -10,7 +10,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -23,11 +24,11 @@ public class PaymentController {
         this.service = service;
     }
 
-    @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    public BillPaymentResponse pay(@Valid @RequestBody BillPaymentRequest request) {
-        BillPaymentResponse response = service.pay(request);
+    @PostMapping(consumes = "application/json")
+    public ResponseEntity<BillPaymentResponse> pay(@Valid @RequestBody BillPaymentRequest request,
+            @RequestHeader("Idempotency-Key") String idempotencyKey) {
+        BillPaymentResponse response = service.pay(request, idempotencyKey);
         log.info("Bill payment completed: reference={}", response.reference());
-        return response;
+        return ResponseEntity.status(response.replayed() ? HttpStatus.OK : HttpStatus.CREATED).body(response);
     }
 }

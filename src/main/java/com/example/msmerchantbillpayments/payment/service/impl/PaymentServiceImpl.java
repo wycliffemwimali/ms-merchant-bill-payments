@@ -7,9 +7,12 @@ import com.example.msmerchantbillpayments.payment.dto.BillPaymentRequest;
 import com.example.msmerchantbillpayments.payment.dto.BillPaymentResponse;
 import com.example.msmerchantbillpayments.payment.exception.PaymentException;
 import com.example.msmerchantbillpayments.payment.model.Payment;
+import com.example.msmerchantbillpayments.payment.model.PaymentStatus;
+import com.example.msmerchantbillpayments.security.CurrentUser;
 import com.example.msmerchantbillpayments.payment.repository.PaymentRepository;
 import com.example.msmerchantbillpayments.payment.service.PaymentService;
 import org.springframework.stereotype.Service;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 import java.math.BigDecimal;
@@ -26,15 +29,30 @@ public class PaymentServiceImpl implements PaymentService {
     private static final BigDecimal MAX_BALANCE = new BigDecimal("99999999999999999.99");
     private final AccountRepository accountRepository;
     private final PaymentRepository paymentRepository;
+    private final CurrentUser currentUser;
 
-    public PaymentServiceImpl(AccountRepository accountRepository, PaymentRepository paymentRepository) {
+    public PaymentServiceImpl(AccountRepository accountRepository, PaymentRepository paymentRepository, CurrentUser currentUser) {
         this.accountRepository = accountRepository;
         this.paymentRepository = paymentRepository;
+        this.currentUser = currentUser;
     }
 
     @Override
+    @PreAuthorize("hasAnyRole('ADMIN', 'CUSTOMER')")
     @Transactional(timeout = 10)
-    public BillPaymentResponse pay(BillPaymentRequest request) {
+    public BillPaymentResponse pay(BillPaymentRequest request, String idempotencyKey) {
+        String requester = currentUser.currentUsername();
+        paymentRepository.lockRequest(requester, idempotencyKey);
+        var previous = paymentRepository.findByRequest(requester, idempotencyKey);
+        if (previous.isPresent()) {
+            Payment payment = previous.get();
+            if (!payment.customerAccountNumber().equals(request.customerAccountNumber())
+                    || !payment.merchantAccountNumber().equals(request.merchantAccountNumber())
+                    || payment.amount().compareTo(request.amount()) != 0) {
+                throw new PaymentException("IDEMPOTENCY_CONFLICT", "This idempotency key was already used for a different payment.");
+            }
+            return response(payment, true);
+        }
         if (request.customerAccountNumber().equals(request.merchantAccountNumber())) {
             throw new PaymentException("INVALID_PAYMENT_ACCOUNTS", "Customer and merchant accounts must be different.");
         }
@@ -72,9 +90,15 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         var payment = new Payment(UUID.randomUUID(), customer.accountNumber(), merchant.accountNumber(),
-                amount, FEE, customerBalance, Instant.now().truncatedTo(ChronoUnit.MICROS));
+                amount, FEE, customerBalance, Instant.now().truncatedTo(ChronoUnit.MICROS),
+                requester, idempotencyKey, PaymentStatus.SUCCESS);
         paymentRepository.insert(payment);
-        return new BillPaymentResponse(payment.reference(), customer.accountNumber(), merchant.accountNumber(),
-                amount, FEE, totalDebit, customerBalance, "KES", payment.paidAt());
+        return response(payment, false);
+    }
+
+    private BillPaymentResponse response(Payment payment, boolean replayed) {
+        return new BillPaymentResponse(payment.reference(), payment.customerAccountNumber(), payment.merchantAccountNumber(),
+                payment.amount(), payment.fee(), payment.amount().add(payment.fee()), payment.customerBalanceAfter(),
+                "KES", payment.paidAt(), payment.status(), replayed);
     }
 }

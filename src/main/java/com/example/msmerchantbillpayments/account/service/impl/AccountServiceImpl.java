@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 @Service
 @Validated
@@ -23,6 +24,7 @@ public class AccountServiceImpl implements AccountService {
     }
 
     @Override
+    @PreAuthorize("hasRole('ADMIN')")
     public AccountResponse register(RegisterAccountRequest request) {
         var account = new Account(request.accountNumber(), request.name().strip(),
                 request.accountType(), request.openingBalance().setScale(2));

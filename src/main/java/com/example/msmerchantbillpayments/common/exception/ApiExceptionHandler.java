@@ -1,7 +1,10 @@
 package com.example.msmerchantbillpayments.common.exception;
 
 import com.example.msmerchantbillpayments.account.exception.DuplicateAccountException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import com.example.msmerchantbillpayments.payment.exception.PaymentException;
+import com.example.msmerchantbillpayments.statement.exception.StatementException;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,6 +70,24 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         };
         log.warn("Bill payment rejected: code={}", ex.getCode());
         return error(status, ex.getCode(), ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(StatementException.class)
+    public ResponseEntity<Object> handleStatement(StatementException ex) {
+        HttpStatus status = "ACCOUNT_NOT_FOUND".equals(ex.getCode()) ? HttpStatus.NOT_FOUND : HttpStatus.BAD_REQUEST;
+        log.warn("Mini-statement rejected: code={}", ex.getCode());
+        return error(status, ex.getCode(), ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Object> handleAccessDenied(AccessDeniedException ex) {
+        return error(HttpStatus.FORBIDDEN, "FORBIDDEN", "You do not have permission to perform this operation.", Map.of());
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<Object> handleAuthentication(AuthenticationException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).header("WWW-Authenticate", "Basic realm=\"merchant-payments\"")
+                .body(new ApiError(Instant.now(), 401, "UNAUTHORIZED", "Authentication is required.", Map.of()));
     }
 
     @ExceptionHandler(Exception.class)

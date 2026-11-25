@@ -20,7 +20,7 @@ public class AccountController {
         this.service = service;
     }
 
-    @PostMapping
+    @PostMapping(consumes = "application/json")
     @ResponseStatus(HttpStatus.CREATED)
     public AccountResponse register(@Valid @RequestBody RegisterAccountRequest request) {
         return service.register(request);

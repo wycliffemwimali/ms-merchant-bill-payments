@@ -5,5 +5,5 @@ import java.time.Instant;
 import java.util.UUID;
 
 public record Payment(UUID reference, String customerAccountNumber, String merchantAccountNumber,
-                      BigDecimal amount, BigDecimal fee, BigDecimal customerBalanceAfter, Instant paidAt) {
+                      BigDecimal amount, BigDecimal fee, BigDecimal customerBalanceAfter, Instant paidAt, String requester, String idempotencyKey, PaymentStatus status) {
 }
