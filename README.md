@@ -16,21 +16,10 @@ psql -h localhost -U postgres -d postgres -c 'CREATE DATABASE mydb;'
 | --- | --- |
 | `DB_URL` | `jdbc:postgresql://localhost:5432/mydb` |
 | `DB_USERNAME` | `postgres` |
-| `DB_PASSWORD` | `postgres` |
+| `DB_PASSWORD` | Set through your environment |
 | `SERVER_PORT` | `8080` |
 
 Tables and additive schema changes are applied on startup without resetting balances.
-
-## Authentication
-
-All APIs require HTTP Basic authentication. These in-memory users are for the local demo;
-passwords are BCrypt-encoded at startup. Use HTTPS and override passwords outside localhost.
-
-| Username | Default password | Role | Password override |
-| --- | --- | --- | --- |
-| `admin` | `admin123` | Admin | `ADMIN_PASSWORD` |
-| `Wycliffe` | `customer123` | Customer | `WYCLIFFE_PASSWORD` |
-| `Mwimali` | `customer456` | Customer | `MWIMALI_PASSWORD` |
 
 Only admins register accounts. Both admins and authenticated customers can pay from any
 customer account and read any customer's mini-statement. There are no account ownership
@@ -47,7 +36,7 @@ restrictions. Requests are stateless and accept JSON.
 Register a customer:
 
 ```bash
-curl -u admin:admin123 http://localhost:8080/api/accounts \
+curl -u admin http://localhost:8080/api/accounts \
   -H 'Content-Type: application/json' \
   -d '{"accountNumber":"ACC001","name":"Wycliffe Mwimali","accountType":"CUSTOMER","openingBalance":5000.00}'
 ```
@@ -55,13 +44,13 @@ curl -u admin:admin123 http://localhost:8080/api/accounts \
 Register a `MERCHANT` account named `MER001` before making this payment:
 
 ```bash
-curl -u Wycliffe:customer123 http://localhost:8080/api/payments \
+curl -u Wycliffe http://localhost:8080/api/payments \
   -H 'Content-Type: application/json' -H 'Idempotency-Key: bill-001' \
   -d '{"customerAccountNumber":"ACC001","merchantAccountNumber":"MER001","amount":200.00}'
 ```
 
 ```bash
-curl -u Wycliffe:customer123 http://localhost:8080/api/accounts/ACC001/mini-statement
+curl -u Wycliffe http://localhost:8080/api/accounts/ACC001/mini-statement
 ```
 
 Successful payments return `201`, `status: SUCCESS`, a reference, amount, fee, total debit,
