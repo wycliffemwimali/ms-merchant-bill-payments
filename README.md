@@ -1,7 +1,7 @@
 # Merchant Bill Payments
 
 REST API built with Java 17, Spring Boot, and PostgreSQL for a merchant bill payments assessment.
-Account registration is implemented; bill payments and mini-statements are in progress.
+Account registration and bill payments are implemented; mini-statements are in progress.
 
 ## Getting started
 
@@ -42,6 +42,26 @@ curl -i http://localhost:8080/api/accounts \
 
 Returns `201 Created` with the account details and balance, `400 Bad Request` for
 invalid input, or `409 Conflict` for an existing account number.
+
+## Bill payment
+
+`POST /api/payments` transfers the bill amount to a merchant and charges the customer
+an additional KES 30, credited to the internal bank fee account.
+
+```bash
+curl -i http://localhost:8080/api/payments \
+  -H 'Content-Type: application/json' \
+  -d '{"customerAccountNumber":"ACC001","merchantAccountNumber":"MER001","amount":200.00}'
+```
+
+Register both accounts first, using `CUSTOMER` and `MERCHANT` respectively. A successful
+payment returns `201 Created` with a unique reference, amount, fee, total debit,
+remaining balance, currency, and timestamp. All three balance updates and the payment
+record commit or roll back together. Concurrent payments use database row locks.
+
+Invalid inputs return `400`, missing accounts `404`, and insufficient funds or balance
+limits `409`. Each accepted request creates a new payment; automatic retry deduplication
+is not implemented.
 
 ## Testing
 

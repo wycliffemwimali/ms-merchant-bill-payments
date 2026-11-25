@@ -41,6 +41,7 @@ class AccountRegistrationTest {
     @BeforeEach
     void setUp() {
         mvc = MockMvcBuilders.webAppContextSetup(context).build();
+        jdbc.update("DELETE FROM payments");
         jdbc.update("DELETE FROM accounts");
     }
 

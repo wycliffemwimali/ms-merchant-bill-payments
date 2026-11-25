@@ -1,6 +1,7 @@
 package com.example.msmerchantbillpayments.common.exception;
 
 import com.example.msmerchantbillpayments.account.exception.DuplicateAccountException;
+import com.example.msmerchantbillpayments.payment.exception.PaymentException;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,7 +37,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     protected ResponseEntity<Object> handleHttpMessageNotReadable(HttpMessageNotReadableException ex,
             HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         return error(HttpStatus.BAD_REQUEST, "INVALID_JSON",
-                "Invalid JSON or field value. accountType must be CUSTOMER or MERCHANT.", Map.of());
+                "Invalid JSON or field value.", Map.of());
     }
 
     @Override
@@ -55,6 +56,17 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<Object> handleConstraintViolation(ConstraintViolationException ex) {
         return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Request validation failed.", Map.of());
+    }
+
+    @ExceptionHandler(PaymentException.class)
+    public ResponseEntity<Object> handlePayment(PaymentException ex) {
+        HttpStatus status = switch (ex.getCode()) {
+            case "ACCOUNT_NOT_FOUND" -> HttpStatus.NOT_FOUND;
+            case "INVALID_PAYMENT_ACCOUNTS", "INVALID_ACCOUNT_TYPE" -> HttpStatus.BAD_REQUEST;
+            default -> HttpStatus.CONFLICT;
+        };
+        log.warn("Bill payment rejected: code={}", ex.getCode());
+        return error(status, ex.getCode(), ex.getMessage(), Map.of());
     }
 
     @ExceptionHandler(Exception.class)
